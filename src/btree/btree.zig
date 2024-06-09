@@ -105,7 +105,7 @@ fn node_lookup_leaf(node: *Node, key: []u8) u16 {
 fn leaf_insert(new: *Node, old: *Node, index: u16, key: []u8, val: []u8) void {
     new.set_header(BTREE_LEAF, old.nkeys() + 1);
     node_append_range(new, old, 0, 0, index);
-
+    node_append_kv(new,index,0, key, val);
     node_append_range(new, old, index+1, index, old.nkeys()-1);
 }
 
@@ -132,11 +132,11 @@ fn node_append_range(new: *Node, old: *Node, dstNew: u16, srcOld: u16, n: u16) !
     std.mem.copyForwards([]u8, new.data[new.kv_position(dstNew)..], old.data[begin..end]);
 }
 
-fn node_append_kv(new: *Node, index: u16, pointer: u64, key: []u8, val: []u8){
+fn node_append_kv(new: *Node, index: u16, pointer: u64, key: []u8, val: []u8) void{
 
     new.set_pointer(index,pointer);
 
-    pos = new.kv_position(index);
+    const pos = new.kv_position(index);
 
     util.write_little_endian_u16(new.data[pos..], @as(u16, @intCast(key.len)));
     util.write_little_endian_u16(new.data[pos+2..], @as(u16, @intCast(val.len)));
