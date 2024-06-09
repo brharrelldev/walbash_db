@@ -3,10 +3,6 @@ const btree = @import("btree/btree.zig");
 
 
 
-pub fn main() !void {
-   const b = btree.Node{.data = "tet"};
+pub fn main() void {
 
-
-
-   std.debug.print("{}", .{b});
 }
