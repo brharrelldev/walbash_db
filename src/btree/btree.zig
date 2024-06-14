@@ -10,13 +10,13 @@ const util = @import("util.zig");
 //| type | nkeys | pointers | offsets | key-values
 //| 2B | 2B | nkeys * 8B | nkeys * 2B | ...
 
-const HEADER = 4;
-const BTREE_PAGE_SIZE = 4096;
-const BTREE_MAX_KEY_SIZE = 1000;
-const BTREE_MAX_VAL_SIZE = 3000;
+pub const HEADER = 4;
+pub const BTREE_PAGE_SIZE = 4096;
+pub const BTREE_MAX_KEY_SIZE = 1000;
+pub const BTREE_MAX_VAL_SIZE = 3000;
 
-const BTREE_NODE = 1;
-const BTREE_LEAF = 2;
+pub const BTREE_NODE = 1;
+pub const BTREE_LEAF = 2;
 
 const Node = struct {
     data: []const u8,
@@ -105,8 +105,8 @@ fn node_lookup_leaf(node: *Node, key: []u8) u16 {
 fn leaf_insert(new: *Node, old: *Node, index: u16, key: []u8, val: []u8) void {
     new.set_header(BTREE_LEAF, old.nkeys() + 1);
     node_append_range(new, old, 0, 0, index);
-    node_append_kv(new,index,0, key, val);
-    node_append_range(new, old, index+1, index, old.nkeys()-1);
+    node_append_kv(new, index, 0, key, val);
+    node_append_range(new, old, index + 1, index, old.nkeys() - 1);
 }
 
 fn node_append_range(new: *Node, old: *Node, dstNew: u16, srcOld: u16, n: u16) !void {
@@ -132,20 +132,33 @@ fn node_append_range(new: *Node, old: *Node, dstNew: u16, srcOld: u16, n: u16) !
     std.mem.copyForwards([]u8, new.data[new.kv_position(dstNew)..], old.data[begin..end]);
 }
 
-fn node_append_kv(new: *Node, index: u16, pointer: u64, key: []u8, val: []u8) void{
-
-    new.set_pointer(index,pointer);
+fn node_append_kv(new: *Node, index: u16, pointer: u64, key: []u8, val: []u8) void {
+    new.set_pointer(index, pointer);
 
     const pos = new.kv_position(index);
 
     util.write_little_endian_u16(new.data[pos..], @as(u16, @intCast(key.len)));
-    util.write_little_endian_u16(new.data[pos+2..], @as(u16, @intCast(val.len)));
+    util.write_little_endian_u16(new.data[pos + 2 ..], @as(u16, @intCast(val.len)));
 
-    std.mem.copyForwards([]u8, new.data[pos+4..], key);
-    std.mem.copyForwards([]u8, new.data[pos+4+@as(u16, @intCast(key.len))], val);
+    std.mem.copyForwards([]u8, new.data[pos + 4 ..], key);
+    std.mem.copyForwards([]u8, new.data[pos + 4 + @as(u16, @intCast(key.len))], val);
 
-    new.set_offset(index+1, new.get_offset(index)+4+@as(u16, @intCast(key.len)));
+    new.set_offset(index + 1, new.get_offset(index) + 4 + @as(u16, @intCast(key.len)));
 }
+
+// fn tree_insert(tree: *BTree, node :*Node, key: []u8, value: []u8) void {
+
+//     const buffer: [2*BTREE_PAGE_SIZE]u8 = undefined;
+//     const buff = std.heap.FixedBufferAllocator.init(&buffer);
+//     const allocator = buff.allocator();
+
+//     const buffer_memory = try allocator.alloc([]u8, 2*BTREE_PAGE_SIZE );
+//     defer allocator.free(buffer_memory);
+
+//     const new = Node{.data = buffer_memory};
+//     _ = new;
+
+// }
 
 const BTree = struct {
     root: u64,
@@ -156,8 +169,6 @@ const BTree = struct {
         try std.testing.expect(node_max <= BTREE_PAGE_SIZE);
     }
 };
-
-
 
 test "ofsset test" {
     var node = Node{ .data = "test" };
