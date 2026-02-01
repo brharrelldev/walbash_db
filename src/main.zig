@@ -1,68 +1,38 @@
 const std = @import("std");
-const btree = @import("btree/btree.zig");
+const io = std.io;
 
-const PAGE_SIZE = 4096;
-pub const Pager = struct {
-    file: *std.fs.File,
-    page_size: u64,
-    page_max: u64,
-    size: u64,
-};
-
-const page = struct {
-    num: u64,
-    next: *page,
-    prev: *page,
-    data: []u8,
-};
-
-const shards = struct {
-    pages: std.AutoArrayHashMap(u64, page),
-    dirty: std.AutoArrayHashMap(u64, bool),
-    head: *page,
-    tail: *page,
-};
-
-//persisting to disk
-//get file size
-//get memory map size
-//pass file descripting into memory map
-//mmap size is taken as the offset
-//return size and chunk
-//
-//
+var cursor: usize = 0;
 pub fn main() !void {
+    const key: []const u8 = "this is a test";
 
-    const db_file = try std.fs.cwd().openFile(".", .{});
-    defer db_file.close();
-    const stat = try db_file.stat();
-    const size = stat.size;
+    const entry_start = 0;
+    const header_size = 2;
 
-    const metadata = try db_file.metadata();
+    var buffer: [100]u8 = undefined;
 
-    if (metadata.size() % PAGE_SIZE == 0) {
-        std.process.exit(1);
-    }
+    const slice = buffer[entry_start .. entry_start + header_size];
 
-    var mmap_size:  u64 = undefined;
+    std.mem.writeInt(u16, slice, @intCast(key.len), .big);
 
-    mmap_size = 64 << 20;
+    const key_begin = cursor + header_size;
+    const key_end = cursor + header_size + key.len;
 
-    if (size < mmap_size){
-        mmap_size += 2;
-    }
+    const key_dest = buffer[key_begin..key_end];
 
-    //const pg_size = std.mem.page_size;
+    @memcpy(key_dest, key);
 
-    const chunk = try std.posix.mmap(null, metadata.size(),
-        std.posix.PROT.READ | std.posix.PROT.WRITE,
-        .{.TYPE = .SHARED}, db_file.handle, 0);
+    const cwd = std.fs.cwd();
 
-    std.debug.print("{s}", chunk);
-}
+    const output_file = try cwd.createFile("output", .{});
+    defer output_file.close();
 
-test "testing" {
-    const size = 64 << 20;
+    const writer = output_file.writer(&buffer);
 
-    std.debug.print("size is {d}\n", .{size});
+    _ = try writer.file.write(&buffer);
+
+    var read_buffer: [100]u8 = undefined;
+
+    const read = try std.fs.cwd().readFile("output", &read_buffer);
+
+    std.debug.print("{s}", .{read});
 }
