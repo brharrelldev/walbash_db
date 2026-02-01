@@ -2,7 +2,6 @@
 
 **A High-Performance Neuromorphic K/V Store**
 
-> *In memory of my mother. A step towards the technology that could have saved her.*
 
 ## Overview
 `walbash_db` is a specialized Key/Value store written in **Zig**, designed to store and retrieve synaptic weights for neuromorphic computing systems. It prioritizes data integrity, spatial locality, and raw performance.
