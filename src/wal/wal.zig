@@ -3,10 +3,15 @@ const io = std.Io;
 
 const header_size = 7;
 
+const WalErrors = error{
+    ErrDataCorruption,
+};
+
 pub const WALWriter = struct {
     writer: std.fs.File,
     buffer: [64000]u8,
     cursor: usize,
+    expected_crc: u32,
     const Self = @This();
 
     pub fn init(writer: std.fs.File) Self {
@@ -80,7 +85,7 @@ pub const WALWriter = struct {
 
         std.debug.print("{d}\n", .{crc});
 
-        const header_len: u16 = @intCast(header_size);
+        const header_len: u16 = @intCast(2 + key.len + 2 + value.len);
 
         std.mem.writeInt(u16, self.buffer[4..6], @intCast(header_len), .big);
 
@@ -89,6 +94,28 @@ pub const WALWriter = struct {
         _ = try buff_writer.file.write(&self.buffer);
 
         try self.writer.sync();
+
+        self.cursor = 0;
+    }
+
+    pub fn read_entry(self: *Self) void {
+        self.writer.seekTo(0);
+        var header_buff: [header_size]u8 = undefined;
+        // var read_buff: [64000]u8 = undefined;
+
+        _ = try self.writer.read(&header_buff);
+
+        const payload_length = std.mem.readInt(u16, header_buff[4..6], .big);
+
+        const remainder: usize = payload_length - header_size;
+
+        const read_buffer: [4096]u8 = self.buffer[7..remainder];
+
+        const actual_crc = std.hash.Crc32.hash(&read_buffer);
+
+        if (actual_crc != self.expected_crc) {
+            return WalErrors.ErrDataCorruption;
+        }
     }
 };
 
