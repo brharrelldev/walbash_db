@@ -4,14 +4,14 @@ const io = std.Io;
 const header_size = 7;
 
 const WalErrors = error{
-    ErrDataCorruption,
+    DataCorruption,
+    UnexpectedEOF,
 };
 
 pub const WALWriter = struct {
     writer: std.fs.File,
     buffer: [64000]u8,
     cursor: usize,
-    expected_crc: u32,
     const Self = @This();
 
     pub fn init(writer: std.fs.File) Self {
@@ -76,46 +76,59 @@ pub const WALWriter = struct {
         //
         //
 
-        const crc = std.hash.Crc32.hash(&self.buffer);
-
-        self.buffer[0] = @intCast((crc >> 24) & 0xFF);
-        self.buffer[1] = @intCast((crc >> 16) & 0xFF);
-        self.buffer[2] = @intCast((crc >> 8) & 0xFF);
-        self.buffer[3] = @intCast((crc >> 0) & 0xFF);
-
-        std.debug.print("{d}\n", .{crc});
-
         const header_len: u16 = @intCast(2 + key.len + 2 + value.len);
 
         std.mem.writeInt(u16, self.buffer[4..6], @intCast(header_len), .big);
 
         self.buffer[6] = op_type;
 
-        _ = try buff_writer.file.write(&self.buffer);
+        const crc = std.hash.Crc32.hash(self.buffer[4 .. header_size + header_len]);
 
+        self.buffer[0] = @intCast((crc >> 24) & 0xFF);
+        self.buffer[1] = @intCast((crc >> 16) & 0xFF);
+        self.buffer[2] = @intCast((crc >> 8) & 0xFF);
+        self.buffer[3] = @intCast((crc >> 0) & 0xFF);
+
+        _ = try buff_writer.file.write(&self.buffer);
+        std.debug.print("{d}\n", .{crc});
         try self.writer.sync();
 
         self.cursor = 0;
     }
 
-    pub fn read_entry(self: *Self) void {
-        self.writer.seekTo(0);
+    pub fn read_entry(self: *Self) !void {
+        try self.writer.seekTo(0);
         var header_buff: [header_size]u8 = undefined;
-        // var read_buff: [64000]u8 = undefined;
+        const bytes_reader = try self.writer.read(&header_buff);
 
-        _ = try self.writer.read(&header_buff);
+        if (bytes_reader < header_size) return error.ErrDataCorruption;
 
+        std.debug.print("heaer read complete\n", .{});
+
+        const stored_crc = std.mem.readInt(u32, header_buff[0..4], .big);
         const payload_length = std.mem.readInt(u16, header_buff[4..6], .big);
 
-        const remainder: usize = payload_length - header_size;
+        var read_buffer: [4096]u8 = undefined;
+        const payload_full = read_buffer[0..payload_length];
+        const b = try self.writer.read(payload_full);
+        if (b < payload_length) return error.UnexpectedEOF;
 
-        const read_buffer: [4096]u8 = self.buffer[7..remainder];
+        std.debug.print("buffer read complete\n", .{});
 
-        const actual_crc = std.hash.Crc32.hash(&read_buffer);
+        var crc = std.hash.Crc32.init();
+        crc.update(header_buff[4..header_size]);
+        crc.update(payload_full);
 
-        if (actual_crc != self.expected_crc) {
-            return WalErrors.ErrDataCorruption;
+        if (crc.final() != stored_crc) {
+            std.debug.print("actual: {d} vs stored: {d}", .{ crc.final(), stored_crc });
+            return error.DataCorruption;
         }
+
+        std.debug.print("success!", .{});
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.writer.close();
     }
 };
 
@@ -129,11 +142,16 @@ test "wal functionality check" {
     const fs = std.fs;
 
     const dir = fs.cwd();
-    const test_file = try dir.createFile("test_out", .{});
+    const test_file = try dir.createFile("test_out", .{
+        .read = true,
+    });
 
     const key: []const u8 = "test-1";
     const value: []const u8 = "this is a new value";
 
     var wal = WALWriter.init(test_file);
+    defer wal.deinit();
+
     try wal.write_entry(key, value, 0x1);
+    try wal.read_entry();
 }
