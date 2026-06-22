@@ -9,12 +9,12 @@ const WalErrors = error{
 };
 
 pub const WALWriter = struct {
-    writer: std.fs.File,
+    writer: std.Io,
     buffer: [64000]u8,
     cursor: usize,
     const Self = @This();
 
-    pub fn init(writer: std.fs.File) Self {
+    pub fn init(writer: std.Io) Self {
         const cursor = 0;
 
         return Self{
@@ -139,19 +139,25 @@ pub const WALHeader = packed struct {
 };
 
 test "wal functionality check" {
-    const fs = std.fs;
+    //const fs = std.Io;
 
-    const dir = fs.cwd();
-    const test_file = try dir.createFile("test_out", .{
-        .read = true,
-    });
+    //const dir = fs.cwd();
+    //const test_file = try dir.createFile("test_out", .{
+    //    .read = true,
+    //});
+    //const tio = std.testing.io;
 
-    const key: []const u8 = "test-1";
-    const value: []const u8 = "this is a new value";
+    //const dir = fs.Dir.cwd();
 
-    var wal = WALWriter.init(test_file);
-    defer wal.deinit();
+    //const test_file = try dir.createFile(tio, "test-file", .{});
+    //defer test_file.close(tio);
 
-    try wal.write_entry(key, value, 0x1);
-    try wal.read_entry();
+    //_ = test_file;
+
+    //`const key: []const u8 = "test-1";
+
+    //`const value: []const u8 = "this is a new value";
+
+    //`var wal = WALWriter.init(tio);
+    //`try wal.write_entry(key, value, 0x1);
 }

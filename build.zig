@@ -8,7 +8,7 @@ pub fn build(b: *std.Build) void {
     const mod = b.addModule("walbash_db", .{
         .target = target,
         .optimize = optimize,
-        .root_source_file = b.path("src/main.zig"),
+        .root_source_file = b.path("walbash-zig/src/main.zig"),
     });
 
     const exe = b.addExecutable(.{
