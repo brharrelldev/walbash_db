@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::{self, BufReader, BufWriter, Read, Seek, Write};
 
 const HEADER_LENGTH: usize = 7;
@@ -82,9 +82,12 @@ impl<W: Write + Seek, R: Read + Seek> Wal<W, R> {
 
         self.cursor += value.len();
 
+        let header_len = (2 + key.len() + 2 + value.len()) as u16;
+        let be_header = header_len.to_be_bytes();
         let mut hasher = crc32fast::Hasher::new();
 
-        hasher.update(&self.buffer);
+        hasher.update(&self.buffer[4..HEADER_LENGTH + header_len as usize]);
+
         let crc = hasher.finalize();
 
         self.buffer[0] = ((crc >> 24) & 0xFF) as u8;
@@ -93,9 +96,6 @@ impl<W: Write + Seek, R: Read + Seek> Wal<W, R> {
         self.buffer[3] = (crc & 0xFF) as u8;
 
         self.buffer[6] = ops_type;
-
-        let header_len = (2 + key.len() + 2 + value.len()) as u16;
-        let be_header = header_len.to_be_bytes();
 
         self.buffer[4..6].copy_from_slice(&be_header);
 
@@ -122,7 +122,7 @@ impl<W: Write + Seek, R: Read + Seek> Wal<W, R> {
                 .expect("error reading header bytes"),
         );
 
-        let payload_length = u32::from_be_bytes(
+        let payload_length = u16::from_be_bytes(
             header_buff[4..6]
                 .try_into()
                 .expect("error reading payload bytes"),
@@ -154,7 +154,10 @@ impl<W: Write + Seek, R: Read + Seek> Wal<W, R> {
 }
 
 fn main() -> io::Result<()> {
-    let wal_file = File::create("wal_test.db")?;
+    let wal_file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open("wal_test.db")?;
 
     let write_clone = wal_file.try_clone()?;
     let read_clone = wal_file.try_clone()?;
