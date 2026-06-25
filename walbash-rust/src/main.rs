@@ -40,7 +40,7 @@ impl<W: Write + Seek, R: Read + Seek> Wal<W, R> {
     pub fn write_entry(&mut self, key: &[u8], value: &[u8], ops_type: u8) -> io::Result<()> {
         self.cursor += HEADER_LENGTH;
         let key_start = self.cursor;
-        let key_end = self.cursor + HEADER_LENGTH + key.len();
+        let key_end = self.cursor + 2;
 
         {
             let key_buffer = &mut self.buffer[key_start..key_end];
@@ -84,6 +84,9 @@ impl<W: Write + Seek, R: Read + Seek> Wal<W, R> {
 
         let header_len = (2 + key.len() + 2 + value.len()) as u16;
         let be_header = header_len.to_be_bytes();
+        self.buffer[4..6].copy_from_slice(&be_header);
+        self.buffer[6] = ops_type;
+
         let mut hasher = crc32fast::Hasher::new();
 
         hasher.update(&self.buffer[4..HEADER_LENGTH + header_len as usize]);
@@ -94,10 +97,6 @@ impl<W: Write + Seek, R: Read + Seek> Wal<W, R> {
         self.buffer[1] = ((crc >> 16) & 0xFF) as u8;
         self.buffer[2] = ((crc >> 8) & 0xFF) as u8;
         self.buffer[3] = (crc & 0xFF) as u8;
-
-        self.buffer[6] = ops_type;
-
-        self.buffer[4..6].copy_from_slice(&be_header);
 
         self.writer.write_all(&self.buffer[..self.cursor])?;
 
